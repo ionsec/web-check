@@ -50,11 +50,18 @@ fi
 print_status 0 "Docker is running"
 
 # Check if docker-compose is available
-if ! command -v docker-compose > /dev/null 2>&1; then
-    print_status 1 "docker-compose is not available"
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose > /dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+    print_status 0 "docker-compose is available"
+elif docker compose version > /dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+    print_status 0 "docker compose (plugin) is available"
+else
+    print_status 1 "Neither docker-compose nor docker compose is available"
+    echo "   Please install Docker Compose: https://docs.docker.com/compose/install/"
     exit 1
 fi
-print_status 0 "docker-compose is available"
 
 # Check if Docker Scout is available (optional)
 DOCKER_SCOUT_AVAILABLE=false
@@ -146,7 +153,7 @@ echo -e "${GREEN}🎉 Build completed successfully!${NC}"
 echo ""
 echo -e "${BLUE}📋 Next Steps:${NC}"
 echo "   1. Start the container:"
-echo "      docker-compose up -d"
+echo "      ${DOCKER_COMPOSE_CMD} up -d"
 echo ""
 echo "   2. Test the container:"
 echo "      ./test-docker-llm.sh"
@@ -155,8 +162,8 @@ echo "   3. Access Web-Check:"
 echo "      http://localhost:3000"
 echo ""
 echo -e "${BLUE}🔧 Useful Commands:${NC}"
-echo "   - View logs: docker-compose logs -f web-check"
-echo "   - Stop container: docker-compose down"
+echo "   - View logs: ${DOCKER_COMPOSE_CMD} logs -f web-check"
+echo "   - Stop container: ${DOCKER_COMPOSE_CMD} down"
 echo "   - Remove image: docker rmi ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
 echo "   - Push to registry: docker push ${DOCKER_IMAGE_NAME}:${DOCKER_TAG}"
 echo ""
