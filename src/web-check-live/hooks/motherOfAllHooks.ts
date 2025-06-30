@@ -23,6 +23,12 @@ interface UseIpAddressProps<ResultType = any> {
   };
 }
 
+interface UseCheckWithHistoryProps {
+  address: string | undefined;
+  addressType: AddressType;
+  updateLoadingJobs: (job: string | string[], newState: LoadingState, error?: string, retry?: (data?: any) => void | null, data?: any) => void;
+}
+
 type ResultType = any;
 
 type ReturnType = [ResultType | undefined, (data?: any) => void];
@@ -104,6 +110,69 @@ const useMotherOfAllHooks = <ResultType = any>(params: UseIpAddressProps<ResultT
     doTheFetch().catch(() => {});
     
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, addressType]);
+
+  return [result, reset];
+};
+
+// New hook for check-with-history endpoint
+export const useCheckWithHistory = (params: UseCheckWithHistoryProps): [any | undefined, (data?: any) => void] => {
+  const { address, addressType, updateLoadingJobs } = params;
+  const [result, setResult] = useState<any>();
+
+  const doTheFetch = () => {
+    if (keys.disableEverything) {
+      updateLoadingJobs('check-with-history', 'skipped', 'Web-Check is temporarily disabled. Please try again later.', reset);
+      return Promise.resolve();
+    }
+
+    const api = process.env.NODE_ENV === 'development' ? 'http://localhost:3000/api' : '/api';
+    
+    return fetch(`${api}/check-with-history?url=${encodeURIComponent(address || '')}`)
+    .then((res) => res.json())
+    .then((res: any) => {
+      if (!res) {
+        updateLoadingJobs('check-with-history', 'error', 'No response', reset);
+      } else if (res.error) {
+        updateLoadingJobs('check-with-history', 'error', res.error, reset);
+      } else {
+        setResult(res);
+        updateLoadingJobs('check-with-history', 'success', '', undefined, res);
+        
+        // If this was a cached result, show a toast
+        if (res.cached) {
+          toast.info(`Using cached analysis from ${res.cache_age_minutes} minutes ago`);
+        }
+      }
+    })
+    .catch((err) => {
+      updateLoadingJobs('check-with-history', 'error', err.error || err.message || 'Unknown error', reset);
+      throw err;
+    });
+  };
+
+  const reset = (data: any) => {
+    if (data && !(data instanceof Event) && !data?._reactName) {
+      setResult(data);
+    } else {
+      updateLoadingJobs('check-with-history', 'loading');
+      const fetchyFetch = doTheFetch();
+      const toastOptions = {
+        pending: 'Updating Analysis',
+        success: 'Analysis Completed',
+        error: 'Failed to update analysis',
+        skipped: 'Skipped analysis',
+      };
+      toast.promise(fetchyFetch, toastOptions).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (!address || !addressType || addressType === 'empt') {
+      return;
+    }
+
+    doTheFetch().catch(() => {});
   }, [address, addressType]);
 
   return [result, reset];
