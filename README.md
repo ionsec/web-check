@@ -15,7 +15,6 @@
 ## 🚀 What's New in v2.1.0
 
 ### Revolutionary Architecture Improvements
-- **🚫 MongoDB-Free:** Complete removal of database dependency for lightning-fast deployment
 - **🧠 DeepSeek R1 1.5B:** Advanced LLM specialized for cybersecurity risk assessment  
 - **⚡ 50% Faster Startup:** Eliminated database initialization bottlenecks
 - **🏃‍♂️ 40% Memory Reduction:** Optimized architecture for production environments
