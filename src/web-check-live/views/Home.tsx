@@ -8,6 +8,7 @@ import Button from 'web-check-live/components/Form/Button';
 import { StyledCard } from 'web-check-live/components/Form/Card';
 import Footer from 'web-check-live/components/misc/Footer';
 import FancyBackground from 'web-check-live/components/misc/FancyBackground';
+import AnalysisHistory from 'web-check-live/components/misc/AnalysisHistory';
 
 import docs from 'web-check-live/utils/docs';
 import colors from 'web-check-live/styles/colors';
@@ -174,7 +175,10 @@ const Home = (): JSX.Element => {
       navigate(`/check/${encodeURIComponent(address)}`, resultRouteParams);
     }
   };
-  
+
+  const handleAnalysisSelect = (url: string) => {
+    navigate(`/check/${encodeURIComponent(url)}`);
+  };
 
   /* Update user input state, and hide error message if field is valid */
   const inputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -239,6 +243,9 @@ const Home = (): JSX.Element => {
         { errorMsg && <ErrorMessage>{errorMsg}</ErrorMessage>}
         <Button type="submit" styles="width: calc(100% - 1rem);" size="large" onClick={submit}>Analyze!</Button>
       </UserInputMain>
+
+      <AnalysisHistory onSelectAnalysis={handleAnalysisSelect} />
+
       <SponsorCard>
         <Heading as="h2" size="small" color={colors.primary}>Sponsored by</Heading>
         <div className="inner">

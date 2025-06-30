@@ -1,8 +1,63 @@
-version: '3.9'
+# Docker Compose configuration for Web-Check with Ollama Integration
+# Enhanced by IONSEC Dev Team - Version 2.1.0
+# No MongoDB dependency - In-memory storage for session-based caching
 services:
   web-check:
     container_name: Web-Check
-    image: lissy93/web-check
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WEBCHECK_VERSION: "2.1.0"
+        OLLAMA_MODEL_VERSION: "deepseek-r1:1.5b"
+        BUILD_DATE: ${BUILD_DATE:-$(date -u +'%Y-%m-%dT%H:%M:%SZ')}
+        VCS_REF: ${VCS_REF:-$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
+      tags:
+        - "web-check:${WEBCHECK_VERSION:-2.1.0}-deepseek"
+        - "web-check:latest-deepseek"
+    image: web-check:${WEBCHECK_VERSION:-2.1.0}-deepseek
     ports:
       - 3000:3000
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=deepseek-r1:1.5b
+      - OLLAMA_CONTEXT_LENGTH=8192
+      - PORT=3000
+      - WEBCHECK_VERSION=${WEBCHECK_VERSION:-2.1.0}
+      - OLLAMA_MODEL_VERSION=deepseek-r1:1.5b
+      - API_TIMEOUT_LIMIT=120000
+      - STORAGE_TYPE=in-memory
+    volumes:
+      - webcheck_data:/app/data
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    depends_on:
+      - ollama
+
+  ollama:
+    container_name: Ollama
+    image: ollama/ollama:latest
+    ports:
+      - 11434:11434
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    # Uncomment the following lines if you have NVIDIA GPU and drivers installed
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+volumes:
+  ollama_models:
+  webcheck_data:

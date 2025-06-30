@@ -57,6 +57,8 @@ import ThreatsCard from 'web-check-live/components/Results/Threats';
 import TlsCipherSuitesCard from 'web-check-live/components/Results/TlsCipherSuites';
 import TlsIssueAnalysisCard from 'web-check-live/components/Results/TlsIssueAnalysis';
 import TlsClientSupportCard from 'web-check-live/components/Results/TlsClientSupport';
+import Ja4FingerprintCard from 'web-check-live/components/Results/Ja4Fingerprint';
+import LlmInsights from 'web-check-live/components/Results/LlmInsights';
 
 import keys from 'web-check-live/utils/get-keys';
 import { determineAddressType, type AddressType } from 'web-check-live/utils/address-type-checker';
@@ -165,10 +167,13 @@ const Results = (props: { address?: string } ): JSX.Element => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [tags, setTags] = useState<string[]>([]);
 
+  const [ja4FingerprintResults, setJa4FingerprintResults] = useState<any>(null);
+
   const clearFilters = () => {
-    setTags([]);
     setSearchTerm('');
+    setTags([]);
   };
+
   const updateTags = (tag: string) => {
     // Remove current tag if it exists, otherwise add it
     // setTags(tags.includes(tag) ? tags.filter(t => t !== tag) : [...tags, tag]);
@@ -372,14 +377,6 @@ const Results = (props: { address?: string } ): JSX.Element => {
     fetchRequest: () => fetch(`${api}/trace-route?url=${address}`).then(res => parseJson(res)),
   });
 
-  // Get a websites listed pages, from sitemap
-  const [securityTxtResults, updateSecurityTxtResults] = useMotherHook({
-    jobId: 'security-txt',
-    updateLoadingJobs,
-    addressInfo: { address, addressType, expectedAddressTypes: urlTypeOnly },
-    fetchRequest: () => fetch(`${api}/security-txt?url=${address}`).then(res => parseJson(res)),
-  });
-
   // Get the DNS server(s) for a domain, and test DoH/DoT support
   const [dnsServerResults, updateDnsServerResults] = useMotherHook({
     jobId: 'dns-server',
@@ -485,6 +482,14 @@ const Results = (props: { address?: string } ): JSX.Element => {
       .then(res => parseJson(res)),
   });
 
+  // Fetch and parse security.txt file
+  const [securityTxtResults, updateSecurityTxtResults] = useMotherHook({
+    jobId: 'security-txt',
+    updateLoadingJobs,
+    addressInfo: { address, addressType, expectedAddressTypes: urlTypeOnly },
+    fetchRequest: () => fetch(`${api}/security-txt?url=${address}`).then(res => parseJson(res)),
+  });
+
   // Get current status and response time of server
   const [serverStatusResults, updateServerStatusResults] = useMotherHook({
     jobId: 'status',
@@ -559,6 +564,17 @@ const Results = (props: { address?: string } ): JSX.Element => {
     }),
   });
 
+  const updateJa4FingerprintResults = async () => {
+    try {
+      const response = await fetch(`${api}/ja4-fingerprint?url=${encodeURIComponent(address)}`);
+      const data = await response.json();
+      setJa4FingerprintResults(data);
+    } catch (error) {
+      console.error('Failed to fetch JA4 fingerprinting results:', error);
+      setJa4FingerprintResults({ error: 'Failed to fetch JA4 fingerprinting results' });
+    }
+  };
+
   /* Cancel remaining jobs after  10 second timeout */
   useEffect(() => {
     const checkJobs = () => {
@@ -585,6 +601,29 @@ const Results = (props: { address?: string } ): JSX.Element => {
   // A list of state sata, corresponding component and title for each card
   const resultCardData = [
     {
+      id: 'llm-insights',
+      title: 'AI Insights',
+      result: null, // This component manages its own state
+      Component: () => {
+        // Only include http-security, dnssec, and ports in allResults for LlmInsights
+        const allResults: Record<string, any> = {};
+        if (resultCardData.find(card => card.id === 'http-security')?.result !== null) {
+          allResults['http-security'] = resultCardData.find(card => card.id === 'http-security')?.result;
+        }
+        if (resultCardData.find(card => card.id === 'dnssec')?.result !== null) {
+          allResults['dnssec'] = resultCardData.find(card => card.id === 'dnssec')?.result;
+        }
+        if (resultCardData.find(card => card.id === 'ports')?.result !== null) {
+          allResults['ports'] = resultCardData.find(card => card.id === 'ports')?.result;
+        }
+        if (ipAddress) {
+          allResults.ipAddress = ipAddress;
+        }
+        return <LlmInsights address={address} addressType={addressType} api={api} allResults={allResults} />;
+      },
+      refresh: () => {}, // No refresh needed as it's self-contained
+      tags: ['ai', 'analysis'],
+    }, {
       id: 'location',
       title: 'Server Location',
       result: locationResults,
@@ -843,6 +882,13 @@ const Results = (props: { address?: string } ): JSX.Element => {
       Component: CarbonFootprintCard,
       refresh: updateCarbonResults,
       tags: ['meta'],
+    }, {
+      id: 'ja4-fingerprint',
+      title: 'JA4 Fingerprint',
+      result: ja4FingerprintResults,
+      Component: Ja4FingerprintCard,
+      refresh: updateJa4FingerprintResults,
+      tags: ['security'],
     },
   ];
 
@@ -922,7 +968,7 @@ const Results = (props: { address?: string } ): JSX.Element => {
             .map(({ id, title, result, tags, refresh, Component }, index: number) => {
               const show = (tags.length === 0 || tags.some(tag => tags.includes(tag)))
               && title.toLowerCase().includes(searchTerm.toLowerCase())
-              && (result && !result.error);
+              && (result === null || (result && !result.error));
               return show ? (
                 <ErrorBoundary title={title} key={`eb-${index}`}>
                   <Component
