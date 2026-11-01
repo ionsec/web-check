@@ -1,0 +1,68 @@
+# trivy: vulnerability, misconfiguration and secret scanning of the
+# repository tree. Trivy NEVER runs on a workstation - CI runners only.
+# Pinned to v0.76.1 deliberately: no 0.69.x line (supply-chain incident).
+# SARIF lands in Code Scanning on public repos; job fails on HIGH/CRITICAL.
+name: Trivy vulnerability scan
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: trivy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trivy-fs-scan:
+    name: Scan repository for vulns, misconfigurations and secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # 1) report run: exits 0 so SARIF is always produced and uploaded
+      - name: Trivy scan (SARIF report)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: fs
+          scan-ref: "."
+          scanners: vuln,misconfig,secret
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Resolve repository visibility
+        id: visibility
+        run: |
+          private=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" | jq -r '.private')
+          echo "private=${private}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload SARIF to Code Scanning (public repos)
+        if: ${{ always() && steps.visibility.outputs.private == 'false' }}
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      # 2) gate run: identical settings, exits 1 on HIGH/CRITICAL findings
+      - name: Trivy gate (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.1
+          scan-type: fs
+          scan-ref: "."
+          scanners: vuln,misconfig,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
